@@ -6,13 +6,10 @@ from paddle.io import DataLoader,Dataset
 import pandas as pd
 import numpy as np
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 
 from data_process import train_data,test_data,df_origin_film_data
 from logger import logger
-
-##是否需要增加BN层？
 
 logger.info("model preparing")
 #获取数据
@@ -22,16 +19,19 @@ def get_train_data(batch_size):
     if length % batch_size != 0:
         new_length = length - length % batch_size
         df = df.iloc[:new_length,:]
+
+    scaler_x = StandardScaler()
+    scaler_y = StandardScaler()
     
     train_x = df.iloc[:,2:-1]
     train_y = df.iloc[:,-1]
     
-    scaler = MinMaxScaler()
-    # train_y = np.array(train_y).reshape(-1,1)
-    # train_y = scaler.fit_transform(train_y)
-    # train_y = train_y * 100
+    scaler_x.fit(train_x)
+    scaler_y.fit(np.array(train_y).reshape(-1,1))
+    train_x = pd.DataFrame(scaler_x.transform(train_x),columns=train_x.columns.tolist())
+    train_y = scaler_y.transform(np.array(train_y).reshape(-1,1))
 
-    return train_x,train_y,df.shape[0],scaler
+    return train_x,train_y,df.shape[0],scaler_x,scaler_y
 
 # Hyper Parameters
 EPOCH = 200  # 训练整批数据多少次
@@ -53,7 +53,7 @@ class trainDataset(Dataset):
     def __len__(self):
         return self.length
 
-train_x,train_y,length,scaler = get_train_data(BATCH_SIZE)
+train_x,train_y,length,scaler_x,scaler_y = get_train_data(BATCH_SIZE)
 print(train_x.shape,train_y.shape)
 train_data = trainDataset(train_x,train_y,length)
 
@@ -96,26 +96,37 @@ sheduler = paddle
 mse_loss = nn.MSELoss()
 optimizer = paddle.optimizer.Adam(learning_rate=LR,parameters=cnn.parameters())
 
-for epoch in range(EPOCH):
+for epoch in range(1,EPOCH + 1):
     print("=" * 50)
     print("epoch {}/{}\n".format(epoch,EPOCH))
     logger.info("model training...")
+    epoch_loss = 0
     for step,(x,y) in enumerate(dataloader):
         output = cnn(x)
         loss = mse_loss(output,y)
-        print("output:{},y:{}".format(output.numpy()[0],y.numpy()[0]))
-        print("loss:{}".format(loss.numpy()[0]))
+        batch_loss = 0
+        batch_loss += loss.numpy()[0]
+        epoch_loss += batch_loss
+        if step % 50 == 0:
+            batch_loss /= BATCH_SIZE
+            batch_loss *= 1000
+            print("epoch:%d,step:%d,batch_loss:%.5f" % (epoch,step,batch_loss))
+            batch_loss = 0
+
         optimizer.clear_grad()
         loss.backward()
         optimizer.step()
+    
+    epoch_loss /= length
+    epoch_loss *= 1000
+    print("epoch:%d,epoch_loss:%.4f" % (epoch,epoch_loss))
 
-
-from sklearn.metrics import r2_score
 
 def get_test_data():
     df = test_data
     test_x = np.array(df.iloc[:,2:-1])
     test_y = np.array(df.iloc[:,-1])
+    test_x = scaler_x.transform(test_x)
 
     return test_x,test_y,df.shape[0]
 
@@ -132,5 +143,6 @@ for step,(x,y) in enumerate(testDataLoader):
     predict.append(output[0])
 
 predict = np.array(predict)
+predict = scaler_y.inverse_transform(predict)
 df_predict = df_origin_film_data.copy()
 df_predict["predict_bo"] = predict

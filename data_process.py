@@ -1,9 +1,15 @@
 import pandas as pd
 import os
+import re
 import pymysql
 import datetime
 from ftplib import FTP
 from logger import logger
+
+import warnings
+warnings.filterwarnings("ignore")
+
+data_path = ""
 
 #当预测周期为2天的时候再另行设定date_diff = 2
 
@@ -56,8 +62,9 @@ def get_shedule_cls():
 def get_film_info(date,date_diff = 1):
     #需要对历史影片当前票房做归一化，因为预售数据的当前数据值一般都远小于历史的当前票房值
     fetch_date = date - datetime.timedelta(days = date_diff)
+    #当固定了每天获取到第二天及第三天的影片预售数据时，再加入fetch_date
     sql = "select film,maoyan_score,current_bo,avg_price as 'film_avg_price',people_per_session as 'film_people_per_session',main_type,country,film_length,show_days from topcdb_film_info \
-        where film_date = '%s' and fetch_date = '%s'" % (date,fetch_date)
+        where film_date = '%s'" % date
     df_film_info = get_sql_data(sql)
     main_type_list = ["动作","科幻","剧情","喜剧","动画","奇幻","爱情","战争","惊悚","纪录","戏曲"]
     main_type_dict = {key:main_type_list.index(key) for key in main_type_list}
@@ -148,7 +155,7 @@ def process_data(start_date,end_date,is_test = False):
         
         df_presale_data = pd.merge(left = df_presale_data,right = df_cinema_info,left_on = "cinema",right_on = "cinema_name",how = "left")
         df_presale_data["opened_days"] = each_date - df_presale_data["open_date"]
-        
+        df_presale_data["opened_days"] = df_presale_data["opened_days"].apply(lambda x:x.days)
         #黄金场处理和判定
         df_csv_data = get_csv_presale_data(each_date)
         df_csv_data["匹配"] = df_csv_data["影院"] + df_csv_data["场次时间"].str.slice(0,2)
@@ -184,12 +191,14 @@ def process_data(start_date,end_date,is_test = False):
 
 today = datetime.date.today()
 #用今天之前的10天数据作为训练数据
+print("preparing train data")
 start_date = str(today - datetime.timedelta(days = 11)).replace("-","")
 end_date = str(today - datetime.timedelta(days = 1)).replace("-","")
 train_data = process_data(start_date,end_date)
 logger.info("train data prepared")
 
 #预测用数据
+print("preparing predict data")
 test_date = str(today + datetime.timedelta(days = 1)).replace("-","")
 test_data,df_origin_film_data = process_data(test_date,test_date,is_test=True)
-logger.infor("test data prepared")
+logger.info("test data prepared")

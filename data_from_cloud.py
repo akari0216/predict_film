@@ -22,7 +22,7 @@ def get_data_by_ssh():
         port=server.local_bind_port)
     
     cursor = conn.cursor()
-    sql = "select * from topcdb_film_info where update_time = '%s'" % str(today)
+    sql = "select * from topcdb_film_info where fetch_date = '%s'" % str(today)
     res = pd.read_sql(sql,conn)
     df = pd.DataFrame(res)
     return df
