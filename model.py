@@ -121,6 +121,8 @@ for epoch in range(1,EPOCH + 1):
     epoch_loss *= 1000
     print("epoch:%d,epoch_loss:%.4f" % (epoch,epoch_loss))
 
+#存储test_data用
+df_predict = test_data.copy()
 
 def get_test_data():
     df = test_data
@@ -144,5 +146,10 @@ for step,(x,y) in enumerate(testDataLoader):
 
 predict = np.array(predict)
 predict = scaler_y.inverse_transform(predict)
-df_predict = df_origin_film_data.copy()
 df_predict["predict_bo"] = predict
+df_predict["cinema_film"] = df_predict["cinema"] + df_predict["bo"]
+df_predict = df_predict[["cinema_film","predict_bo"]]
+df_predict = pd.merge(left = df_origin_film_data,right = df_predict,on = "cinema_film",how = "left")
+df_predict.drop(columns = ["cinema_film"],axis = 1,inplace = True)
+df_predict["predict_bo"].fillna(0,inplace = True)
+df_predict["predict_bo"] = df_predict["predict_bo"].apply(lambda x:0 if x<0 else x)

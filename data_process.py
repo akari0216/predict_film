@@ -107,6 +107,7 @@ def get_csv_presale_data(date,date_diff = 1):
     fetch_date = date - datetime.timedelta(days = date_diff)
     filename = get_ftp_data(str(fetch_date))
     df = pd.read_csv(filename)
+    os.remove(filename)
     pat = "（.*?）\s*|\(.*?\)\s*|\s*"
     df["影片"].replace(pat,"",regex = True,inplace = True)
     df["影片"] = df["影片"].str.replace(":","").str.replace("：","").str.replace("·","").str.replace(".","")
@@ -125,6 +126,7 @@ def get_csv_presale_data(date,date_diff = 1):
 
 #数据处理过程
 def process_data(start_date,end_date,is_test = False):
+    os.chdir(data_path)
     #档期列表
     df_shedule_list = get_shedule_cls()
     #影城信息

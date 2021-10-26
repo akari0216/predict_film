@@ -3,6 +3,7 @@ import pymysql
 from sqlalchemy import create_engine
 import datetime
 import pandas as pd
+from logger import logger
 
 today = datetime.date.today()
 
